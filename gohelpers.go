@@ -1,4 +1,4 @@
-package main
+package gohelpers
 
 import (
 	"crypto/md5"
