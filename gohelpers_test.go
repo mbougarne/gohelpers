@@ -45,3 +45,21 @@ func TestHashPassword(t *testing.T) {
 		t.Fatalf(`HashPassword(password) = %q, %v, want match for %#q, nil`, hashed, err, password)
 	}
 }
+
+func TestVerifyPassword(t *testing.T) {
+	password := "secret"
+	hashed, _ := HashPassword(password) // the err not used here because it checked in the previous test.
+	isMatched := VerifyHashedPassword(password, hashed)
+
+	if !isMatched {
+		t.Fatal("VerifyHashedPassword isn't working as expected!")
+	}
+}
+
+func TestGenerateJwtToken(t *testing.T) {
+	token, err := GenerateJwtToken([]byte("abcde12345"))
+
+	if token == "" || err != nil {
+		t.Fatalf("GenerateJwtToken: cannot generate a valid token: %v, it returns an error: %v", token, err.Error())
+	}
+}
