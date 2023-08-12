@@ -1,3 +1,6 @@
+/*
+A helper utilities that I use in my work in Go and want to share with the community. It has helpers to work with `dotEnv` in a basic and simple use, and `JWT` to generate, and validate tokens and refresh tokens.
+*/
 package gohelpers
 
 import (
