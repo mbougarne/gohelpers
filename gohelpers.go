@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -13,16 +12,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Hash password with the bcrypt
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
 
+// Verify if two passwords matched with bcrypt
 func VerifyHashedPassword(plain, hashed string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain))
 	return err == nil
 }
 
+// Convert a struct of any type to a map of keys of strings and values of any type.
 func StructToMap(in any) map[string]any {
 	reflectedStruct := reflect.ValueOf(in)
 	fieldsLength := reflectedStruct.NumField()
@@ -35,8 +37,9 @@ func StructToMap(in any) map[string]any {
 	return resultMap
 }
 
-func RemoveFieldFromStruct(in any, field string) (map[string]string, error) {
-	mapResult := make(map[string]string)
+// Remove a field from struct of any type, and return a new map of keys of strings and values of any type.
+func RemoveFieldFromStruct(in any, field string) (map[string]interface{}, error) {
+	mapResult := make(map[string]interface{})
 	tempMap := make(map[string]interface{})
 
 	b, marshal_err := json.Marshal(&in)
@@ -52,24 +55,37 @@ func RemoveFieldFromStruct(in any, field string) (map[string]string, error) {
 	}
 
 	for k, v := range tempMap {
-		if k != field && v.(string) != "" {
-			mapResult[k] = v.(string)
+		if k != field {
+			mapResult[k] = v
 		}
 	}
 
 	return mapResult, nil
 }
 
-func InSlice(in string, list []string) bool {
-	for _, v := range list {
-		if in == v {
-			return true
+// Check if a value of any type exist in a slice of any type
+func InSlice(in interface{}, list interface{}) bool {
+	switch t := list.(type) {
+	case []string, []int, []float32, []float64, []byte, []bool, []rune:
+		reflectedList := reflect.ValueOf(t)
+		length := reflectedList.Len()
+
+		for i := 0; i < length; i++ {
+			if reflectedList.Index(i).Interface() == in {
+				return true
+			}
 		}
+	default:
+		return false
 	}
 
 	return false
 }
 
+/*
+Generate random string in md5 format
+A good use of this func is to rename the uploaded files.
+*/
 func RandomMd5String(input string) string {
 	ct := fmt.Sprint(time.Now().UTC().UnixMilli())
 	input = ct + input
@@ -78,6 +94,9 @@ func RandomMd5String(input string) string {
 	return hex.EncodeToString(hashedM5[:])
 }
 
+/*
+Convert slice of strings to map of strings. It will take the first item in the slice as a map key, and the next item as the map value.
+*/
 func SliceStringToMapString(slice []string) map[string]string {
 	resultMap := make(map[string]string, len(slice))
 
@@ -88,50 +107,43 @@ func SliceStringToMapString(slice []string) map[string]string {
 	return resultMap
 }
 
-func LoadDotEnvToOsEnv(envfile string) error {
-	data, err := os.ReadFile(envfile)
+/*
+Convert slice of these types:
+`[]string, []int, []float32, []float64, []byte, []bool, []rune`
+To a `map[string]interface{}`. It will return an error if the type is not supported, or the map if there's no error.
+*/
+func SliceToMap(slice interface{}) (map[string]interface{}, error) {
+	var resultMap map[string]interface{}
 
-	if err != nil {
-		return err
+	switch t := slice.(type) {
+	case []string, []int, []float32, []float64, []byte, []bool, []rune:
+		reflectedList := reflect.ValueOf(t)
+		length := reflectedList.Len()
+		resultMap = make(map[string]interface{}, length)
+
+		for i := 0; i < length; i += 2 {
+			resultMap[strings.ToLower(reflectedList.Type().Field(i).Name)] = reflectedList.Field(i + 1).Interface()
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported type")
 	}
 
-	parsedData := parseEnvData(data)
-	mapped_data := SliceStringToMapString(parsedData)
-
-	for key, val := range mapped_data {
-		os.Setenv(key, val)
-	}
-
-	return nil
+	return resultMap, nil
 }
 
-func GenerateSecretKet(secretKeyEnvName string) ([]byte, error) {
-	err := LoadDotEnvToOsEnv(".env")
-
-	if err != nil {
-		return nil, err
+/*
+Flatten a map
+*/
+func FlattenMap(in map[string]interface{}, want map[string]interface{}) {
+	for k, v := range in {
+		switch child := v.(type) {
+		case map[string]interface{}:
+			FlattenMap(child, want)
+		case []interface{}:
+			want = StructToMap(child)
+		default:
+			want[k] = v
+		}
 	}
-
-	secret_key := os.Getenv(secretKeyEnvName)
-
-	if secret_key == "" {
-		return nil, fmt.Errorf("there is no 'SECRET_KEY' in .env file")
-	}
-
-	jwtKey := []byte(secret_key)
-	return jwtKey, nil
-}
-
-func parseEnvData(data []byte) []string {
-	var resultSlice []string
-
-	stringData := string(data)
-	splitByNewLine := strings.Split(stringData, "\n")
-
-	for _, v := range splitByNewLine {
-		v_slice := strings.Split(v, "=")
-		resultSlice = append(resultSlice, v_slice...)
-	}
-
-	return resultSlice
 }
