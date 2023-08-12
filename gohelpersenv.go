@@ -42,8 +42,9 @@ func LoadDotEnvToOsEnv(envfile ...string) error {
 	}
 
 	parsedData := parseEnvData(data)
+	parsedOsEnvData := parseEnvData(os.Environ())
 	mapped_data := SliceStringToMapString(parsedData)
-	currentEnvs := SliceStringToMapString(os.Environ())
+	currentEnvs := SliceStringToMapString(parsedOsEnvData)
 
 	for key, val := range mapped_data {
 		if _, ok := currentEnvs[key]; !ok {
@@ -79,18 +80,24 @@ func GetEnvKey(keyName string) string {
 	return os.Getenv(keyName)
 }
 
-func parseEnvData(data []byte) []string {
+func parseEnvData(data interface{}) []string {
 	var resultSlice []string
 
-	stringData := string(data)
-	splitByNewLine := strings.Split(stringData, "\n")
-
-	for _, v := range splitByNewLine {
-		v_slice := strings.Split(v, "=")
-		resultSlice = append(resultSlice, v_slice...)
+	switch t := data.(type) {
+	case []byte:
+		appendToSlice(strings.Split(string(t), "\n"), &resultSlice)
+	case []string:
+		appendToSlice(t, &resultSlice)
 	}
 
 	return resultSlice
+}
+
+func appendToSlice(in []string, out *[]string) {
+	for _, v := range in {
+		v_slice := strings.Split(v, "=")
+		*out = append(*out, v_slice...)
+	}
 }
 
 func defaultEnvFile() string {
