@@ -60,7 +60,7 @@ This is a method that return a []byte secret key to use it in JWT.
 Passing a second arg as `true`, will make the func look for the `secretKeyEnvName` in the OS env vars. If that key is a custom one exists in a '.env` file, you need to load env vars to the OS first: `gohelpers.LoadDotEnvToOsEnv()`.
 Using the func without a second arg, will take the `secretKeyEnvName` as input to produce a slice of bytes: []byte(secretKeyEnvName)
 */
-func GenerateSecretKet(secretKeyEnvName string, envfile ...bool) ([]byte, error) {
+func GenerateSecretKey(secretKeyEnvName string, envfile ...bool) ([]byte, error) {
 	if len(envfile) > 0 {
 		secret_key := GetEnvKey(secretKeyEnvName)
 

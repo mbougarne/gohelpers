@@ -1,7 +1,9 @@
 package gohelpers
 
 import (
+	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -37,10 +39,7 @@ func VerifyJwtToken(tokenString string, secretKey []byte) (bool, error) {
 	})
 
 	if err != nil {
-		if err.Error() == jwt.ErrTokenExpired.Error() {
-			return false, errors.New("jwt.ValidationErrorExpired")
-		}
-
+		// TODO: Implement token expired error to issued new token based on validity of the refresh token.
 		return false, errors.New("invalid token")
 	}
 
@@ -72,5 +71,26 @@ func prepareClaims(customClaims []jwt.Claims) jwt.Claims {
 		return customClaims[0]
 	}
 
-	return new(jwtCustomClaims)
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(12 * time.Minute)),
+	}
+
+	return claims
+}
+
+// Cast jwt Claims to custom interfaces
+func CastJwtClaimsToCustomClaims(mapClaims, claims interface{}) error {
+	tmp, err := json.Marshal(mapClaims)
+
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(tmp, &claims)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
