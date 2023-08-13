@@ -1,16 +1,3 @@
-/*
-This is a part of the gohelpers package, to load the .env file data to the OS env variables.
-The recommended approach to use is to create a `.env` file in the root of the project, then call it in the main func of the project:
-
-	`func main() {
-		if err:= gohelpers.LoadDotEnvToOsEnv(); err != nil {
-			// handle the error as you see it suitable for you.
-			// If the err is nil, the vars will be loaded to the OS env
-		}
-	}`
-
-Therefor, you can get env keys with `os.Getenv(env_name)` OR with `gohelpers.GetEnvKey(env_key)`.
-*/
 package gohelpers
 
 import (
