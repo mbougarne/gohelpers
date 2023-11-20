@@ -11,7 +11,7 @@ I first come in touch with `Go` back in 2019, but for some work reason, I stoppe
 ### Installation
 
 ```sh
-go get https://github.com/mbougarne/gohelpers
+go get github.com/mbougarne/gohelpers
 ```
 
 ### Usage

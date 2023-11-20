@@ -103,7 +103,7 @@ Convert slice of strings to map of strings. It will take the first item in the s
 func SliceStringToMapString(slice []string) map[string]string {
 	resultMap := make(map[string]string, len(slice))
 
-	for i := 0; i < len(slice); i += 2 {
+	for i := 0; i < len(slice)-1; i += 2 {
 		resultMap[slice[i]] = slice[i+1]
 	}
 
