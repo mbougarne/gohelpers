@@ -59,9 +59,15 @@ func TestGenerateSecretKeyInBytes(t *testing.T) {
 func TestGetEnvKey(t *testing.T) {
 	key := GetEnvKey("SECRET_KEY")
 	want := "abc123456XYZ"
-
+	dsn := GetEnvKey("MY_DB_URL")
+	wantDsn := "mongodb://username:secret@localhost:27017/schema_db?ssl=enabled"
+	fmt.Printf("dsn: %v", dsn)
 	if want != key || key == "" {
 		t.Fatalf(`GetEnvKey("SECRET_KEY") = %v, want match for %v, nil`, key, want)
+	}
+
+	if wantDsn != dsn || dsn == "" {
+		t.Fatalf(`GetEnvKey("MY_DB_URL") = %v, want match for %v, nil`, key, want)
 	}
 }
 

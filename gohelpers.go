@@ -98,12 +98,36 @@ func RandomMd5String(input string) string {
 }
 
 /*
-Convert slice of strings to map of strings. It will take the first item in the slice as a map key, and the next item as the map value.
-*/
-func SliceStringToMapString(slice []string) map[string]string {
-	resultMap := make(map[string]string, len(slice))
+Convert slice of strings to map of strings. Takes items in pairs where slice[i] is the key
+and slice[i+1] is the value.
 
-	for i := 0; i < len(slice)-1; i += 2 {
+Parameters:
+- slice: input slice of strings
+- onOddLength: behavior for odd-length slices:
+  - "skip": skip last element (default)
+  - "empty": use empty string as value
+  - "panic": panic on odd length (original behavior)
+*/
+func SliceStringToMapString(slice []string, onOddLength ...string) map[string]string {
+	behavior := "skip" // default
+	if len(onOddLength) > 0 {
+		behavior = onOddLength[0]
+	}
+
+	resultMap := make(map[string]string, len(slice)/2+1)
+
+	for i := 0; i < len(slice); i += 2 {
+		if i+1 >= len(slice) {
+			switch behavior {
+			case "empty":
+				resultMap[slice[i]] = ""
+			case "panic":
+				panic(fmt.Sprintf("odd number of elements in slice (got %d)", len(slice)))
+			case "skip":
+				// default - do nothing
+			}
+			break
+		}
 		resultMap[slice[i]] = slice[i+1]
 	}
 
