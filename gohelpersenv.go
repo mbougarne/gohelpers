@@ -31,7 +31,7 @@ func LoadDotEnvToOsEnv(envfile ...string) error {
 	parsedData := parseEnvData(data)
 	parsedOsEnvData := parseEnvData(os.Environ())
 	mapped_data := SliceStringToMapString(parsedData)
-	currentEnvs := SliceStringToMapString(parsedOsEnvData)
+	currentEnvs := SliceStringToMapString(parsedOsEnvData, "panic")
 
 	for key, val := range mapped_data {
 		if _, ok := currentEnvs[key]; !ok {
@@ -82,8 +82,17 @@ func parseEnvData(data interface{}) []string {
 
 func appendToSlice(in []string, out *[]string) {
 	for _, v := range in {
-		v_slice := strings.Split(v, "=")
-		*out = append(*out, v_slice...)
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(v), "#") {
+			continue
+		}
+		parts := strings.SplitN(v, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		*out = append(*out, parts[0], parts[1])
 	}
 }
 
