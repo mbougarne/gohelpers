@@ -1,7 +1,9 @@
 package gohelpers
 
 import (
-	"fmt"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
@@ -61,7 +63,7 @@ func TestGetEnvKey(t *testing.T) {
 	want := "abc123456XYZ"
 	dsn := GetEnvKey("MY_DB_URL")
 	wantDsn := "mongodb://username:secret@localhost:27017/schema_db?ssl=enabled"
-	fmt.Printf("dsn: %v", dsn)
+
 	if want != key || key == "" {
 		t.Fatalf(`GetEnvKey("SECRET_KEY") = %v, want match for %v, nil`, key, want)
 	}
@@ -127,7 +129,6 @@ func TestGetClaims(t *testing.T) {
 
 	jwtClaims, _ := GetClaims(token, secretKey)
 	claims := jwtClaims.(jwt.MapClaims)
-	fmt.Println(claims)
 	if claims["exp"] == nil || err != nil {
 		t.Fatal("TestGetDefaultClaims: the username and uuid of jwtCustomClaims are not set")
 	}
@@ -173,7 +174,7 @@ func TestVerifyTokenWithExpiredToken(t *testing.T) {
 	isValid, err := VerifyJwtToken(token, secretKey)
 
 	if isValid || err == nil {
-		t.Fatalf("TestVerifyToken: the isValid should be 'false' but we got %v", isValid)
+		t.Fatalf("TestVerifyTokenWithExpiredToken: the isValid should be 'false' but we got %v", isValid)
 	}
 }
 
@@ -186,6 +187,124 @@ func TestVerifyTokenWithInvalidToken(t *testing.T) {
 	isValid, err := VerifyJwtToken(token, envSecretKey)
 
 	if isValid || err == nil {
-		t.Fatalf("TestVerifyToken: the isValid should be 'false' but we got %v", isValid)
+		t.Fatalf("TestVerifyTokenWithInvalidToken: the isValid should be 'false' but we got %v", isValid)
+	}
+}
+
+func TestGenerateJwtToken_AddsIatJti_ForCustomClaims(t *testing.T) {
+	secret := []byte("abcde12345")
+	claims := createCustomClaim()
+	tok, err := GenerateJwtToken(secret, &claims)
+	if err != nil || tok == "" {
+		t.Fatalf("GenerateJwtToken error: %v", err)
+	}
+
+	rawClaims, err := GetClaims(tok, secret)
+	if err != nil {
+		t.Fatalf("GetClaims error: %v", err)
+	}
+	mc := rawClaims.(jwt.MapClaims)
+	if mc["iat"] == nil {
+		t.Fatal("expected iat to be injected")
+	}
+	if mc["jti"] == nil {
+		t.Fatal("expected jti to be injected")
+	}
+}
+
+func TestVerifyJwtToken_ErrorKinds(t *testing.T) {
+	secret := []byte("topsecret")
+	other := []byte("wrongsecret")
+
+	// Expired token
+	exp := time.Now().Add(-1 * time.Minute)
+	cc := createCustomClaim(exp)
+	tokExpired, _ := GenerateJwtToken(secret, &cc)
+	ok, err := VerifyJwtToken(tokExpired, secret)
+	if ok || !errors.Is(err, jwt.ErrTokenExpired) {
+		t.Fatalf("expected ErrTokenExpired, got ok=%v err=%v", ok, err)
+	}
+
+	// Signature invalid
+	cc2 := createCustomClaim(time.Now().Add(2 * time.Minute))
+	tokSignedWithSecret, _ := GenerateJwtToken(secret, &cc2)
+	ok, err = VerifyJwtToken(tokSignedWithSecret, other)
+	if ok || !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+		t.Fatalf("expected ErrTokenSignatureInvalid, got ok=%v err=%v", ok, err)
+	}
+}
+
+func TestGetClaimsAs_Typed(t *testing.T) {
+	secret := []byte("abcde12345")
+	cc := createCustomClaim()
+	tok, _ := GenerateJwtToken(secret, &cc)
+
+	var got jwtCustomClaims
+	if err := GetClaimsAs(tok, secret, &got); err != nil {
+		t.Fatalf("GetClaimsAs error: %v", err)
+	}
+	if got.Username != "johnDoe" || got.Uuid == "" || got.ExpiresAt == nil {
+		t.Fatalf("unexpected typed claims: %+v", got)
+	}
+}
+
+func TestParseFromRequest_BearerHeader(t *testing.T) {
+	secret := []byte("s3cr3t")
+	cc := createCustomClaim(time.Now().Add(2 * time.Minute))
+	tok, _ := GenerateJwtToken(secret, &cc)
+
+	req := httptest.NewRequest(http.MethodGet, "http://x.local/api", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+
+	opts := ParseOptions{Secret: secret}
+	got, err := ParseFromRequest(req, opts)
+	if err != nil || !got.Valid {
+		t.Fatalf("ParseFromRequest failed: %v", err)
+	}
+}
+
+func TestParseFromRequest_CookieAndQuery(t *testing.T) {
+	secret := []byte("s3cr3t")
+	cc := createCustomClaim(time.Now().Add(2 * time.Minute))
+	tok, _ := GenerateJwtToken(secret, &cc)
+
+	// cookie
+	reqC := httptest.NewRequest(http.MethodGet, "http://x.local/api", nil)
+	reqC.AddCookie(&http.Cookie{Name: "access_token", Value: tok})
+	_, err := ParseFromRequest(reqC, ParseOptions{Secret: secret, CookieName: "access_token"})
+	if err != nil {
+		t.Fatalf("cookie parse failed: %v", err)
+	}
+
+	// query
+	reqQ := httptest.NewRequest(http.MethodGet, "http://x.local/api?token="+tok, nil)
+	_, err = ParseFromRequest(reqQ, ParseOptions{Secret: secret, QueryParam: "token"})
+	if err != nil {
+		t.Fatalf("query parse failed: %v", err)
+	}
+}
+
+func TestParseFromRequest_SignatureInvalidAndExpired(t *testing.T) {
+	secret := []byte("right")
+	wrong := []byte("wrong")
+
+	// signature invalid
+	cc := createCustomClaim(time.Now().Add(2 * time.Minute))
+	tok, _ := GenerateJwtToken(secret, &cc)
+	req := httptest.NewRequest(http.MethodGet, "http://x.local/api", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	_, err := ParseFromRequest(req, ParseOptions{Secret: wrong})
+	if !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+		t.Fatalf("expected signature invalid, got %v", err)
+	}
+
+	// expired
+	ccExp := createCustomClaim(time.Now().Add(-1 * time.Minute))
+	tokExp, _ := GenerateJwtToken(secret, &ccExp)
+	req2 := httptest.NewRequest(http.MethodGet, "http://x.local/api", nil)
+	req2.Header.Set("Authorization", "Bearer "+tokExp)
+	_, err = ParseFromRequest(req2, ParseOptions{Secret: secret})
+	if !errors.Is(err, jwt.ErrTokenExpired) {
+		t.Fatalf("expected expired, got %v", err)
 	}
 }
